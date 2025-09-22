@@ -877,13 +877,13 @@ function pvewhmcs_AdminCustomButtonArray() {
 // MODULE BUTTONS: Client Interface button regos
 function pvewhmcs_ClientAreaCustomButtonArray() {
 	$buttonarray = array(
-		"<i class='fa fa-2x fa-flag-checkered'></i> Start" => "vmStart",
-		"<i class='fa fa-2x fa-sync'></i> Reboot" => "vmReboot",
-		"<i class='fa fa-2x fa-power-off'></i> Power Off" => "vmShutdown",
-		"<i class='fa fa-2x fa-stop'></i>  Hard Stop" => "vmStop",
-		"<i class='fa fa-2x fa-chart-bar'></i>  Statistics" => "vmStat",
-		"<img src='./modules/servers/pvewhmcs/img/novnc.png'/> noVNC (HTML5)" => "noVNC",
-		"<img src='./modules/servers/pvewhmcs/img/tigervnc.png'/> TigerVNC (Java)" => "javaVNC",
+		"Start" => "vmStart",
+		"Reboot" => "vmReboot",
+		"Power Off" => "vmShutdown",
+		"Hard Stop" => "vmStop",
+		"Statistics" => "vmStat",
+		"noVNC (HTML5)" => "noVNC",
+
 	);
 	return $buttonarray;
 }
@@ -905,6 +905,20 @@ function pvewhmcs_ClientArea($params) {
 		'password2' => $pveserver->password,
 	);
 	$serverpassword = localAPI('DecryptPassword', $api_data);
+
+	if ($params['status'] != 'Active') {
+		return array(
+			'templatefile' => 'clientarea',
+			'vars' => array(
+				'params' => $params,
+				'vm_config' => array(),
+				'vm_status' => array(),
+				'vm_statistics' => array(),
+				'vm_vncproxy' => array(),
+				'message' => '服务状态不是Active，无法请求VM信息。',
+			),
+		);
+	}
 
 	$proxmox = new PVE2_API($serverip, $serverusername, "pam", $serverpassword['password']);
 	if ($proxmox->login()) {
@@ -1126,7 +1140,7 @@ function pvewhmcs_noVNC($params) {
 		// Construct the noVNC Router URL with the path already prepared now
 		$url = '/modules/servers/pvewhmcs/novnc_router.php?host=' . $serverip . '&pveticket=' . urlencode($pveticket) . '&path=' . urlencode($path) . '&vncticket=' . urlencode($vncticket);
 		// Build and deliver the noVNC Router hyperlink for access
-		$vncreply = '<center><strong>Console (noVNC) prepared for usage. <a href="'.$url.'" target="_blanK">Click here</a> to open the noVNC window.</strong></center>' ;
+		$vncreply = '<center><strong><a href="'.$url.'" target="_blanK">点击打开novnc窗口</a></strong></center>' ;
 		return $vncreply;
 	} else {
 		$vncreply = 'Failed to prepare noVNC. Please contact Technical Support.';
@@ -1228,6 +1242,11 @@ function pvewhmcs_vmStart($params) {
 		$first_node = $nodes[0];
 		unset($nodes);
 		$guest = Capsule::table('mod_pvewhmcs_vms')->where('id','=',$params['serviceid'])->get()[0] ;
+		// Check current status
+		$guest_specific = $proxmox->get('/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/current');
+		if ($guest_specific['status'] === 'running') {
+			return "VM is already running.";
+		}
 		$pve_cmdparam = array();
 		$logrequest = '/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/start';
 		$response = $proxmox->post('/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/start' , $pve_cmdparam);
@@ -1273,7 +1292,7 @@ function pvewhmcs_vmReboot($params) {
 		$pve_cmdparam = array();
 		// Check status before doing anything
 		$guest_specific = $proxmox->get('/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/current');
-        	if ($guest_specific['status'] = 'stopped') {
+        	if ($guest_specific['status'] == 'stopped') {
 			// START if Stopped
 			$logrequest = '/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/start';
 			$response = $proxmox->post('/nodes/' . $first_node . '/' . $guest->vtype . '/' . $guest->vmid . '/status/start' , $pve_cmdparam);
